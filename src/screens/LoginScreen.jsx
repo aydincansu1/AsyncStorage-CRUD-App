@@ -16,7 +16,6 @@ export default function LoginScreen({navigation}) {
   // Login fonksiyonu
   const handleLogin = async () => {
     if (username && password) {
-      // Bu örnekte basit bir doğrulama yapılır, gerçek bir uygulamada bu işlemi sunucuda yapmalısınız
       await AsyncStorage.setItem('username', username);
       await AsyncStorage.setItem('password', password);
 
