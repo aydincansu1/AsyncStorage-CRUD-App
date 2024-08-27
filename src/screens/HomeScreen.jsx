@@ -1,3 +1,4 @@
+import React, {useEffect, useState} from 'react';
 import {
   View,
   Text,
@@ -8,169 +9,133 @@ import {
   TextInput,
   FlatList,
 } from 'react-native';
-import React, {useEffect, useState} from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import uuid from 'react-native-uuid';
+import DeleteIcon from '../Icon/DeleteIcon';
+import UpdateIcon from '../Icon/UpdateIcon';
 
 export default function HomeScreen() {
-  // Kullanıcının girdiği görev
-  const [gorev, setGorev] = useState('');
-  // Görev listesi
-  const [gorevler, setGorevler] = useState([]);
+  const [task, setTask] = useState('');
+  const [tasks, setTasks] = useState([]);
 
-  // Bileşen ilk kez yüklendiğinde görevleri yükle
   useEffect(() => {
-    gorevleriYukle();
+    loadTasks();
   }, []);
 
-  // Görev ekleme fonksiyonu
-  const gorevEkle = async () => {
+  const addTask = async () => {
+    if (task.trim()) {
+      const newTasks = [...tasks, {id: uuid.v4(), task: task.trim()}];
+      setTasks(newTasks);
+      await AsyncStorage.setItem('tasks', JSON.stringify(newTasks));
+      setTask('');
+    }
+  };
+
+  const loadTasks = async () => {
     try {
-      // Kullanıcı bir görev girdi mi kontrol et
-      if (gorev.trim()) {
-        // Yeni bir görev oluştur ve mevcut görevler listesine ekle
-        const yeniGorevler = [
-          ...gorevler,
-          {id: uuid.v4(), gorev: gorev.trim()}, // Her görev için benzersiz ID oluştur
-        ];
-        setGorevler(yeniGorevler); // Yeni görevler listesini state'e kaydet
-
-        // Güncellenmiş görevler AsyncStorage'a kaydediliyor
-        await AsyncStorage.setItem('gorevler', JSON.stringify(yeniGorevler));
-
-        // Görev input alanını temizle
-        setGorev('');
+      const storedTasks = await AsyncStorage.getItem('tasks');
+      if (storedTasks) {
+        setTasks(JSON.parse(storedTasks));
       }
-    } catch (e) {
-      // Görev eklenirken bir hata oluşursa, hata mesajını konsola yaz
-      console.error('Görev eklenirken hata oluştu:', e);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
     }
   };
 
-  // Görevleri AsyncStorage'dan yükleme fonksiyonu
-  const gorevleriYukle = async () => {
-    try {
-      // AsyncStorage'dan görevler verisini al
-      const kayitliGorevler = await AsyncStorage.getItem('gorevler');
-      if (kayitliGorevler) {
-        // Veriyi JSON formatında çözümle ve state'e kaydet
-        setGorevler(JSON.parse(kayitliGorevler));
-      }
-    } catch (e) {
-      // Görevler yüklenirken bir hata oluşursa, hata mesajını konsola yaz
-      console.error('Görevler yüklenirken hata oluştu:', e);
-    }
+  const deleteTask = async id => {
+    const updatedTasks = tasks.filter(task => task.id !== id);
+    setTasks(updatedTasks);
+    await AsyncStorage.setItem('tasks', JSON.stringify(updatedTasks));
   };
 
-  // Görev silme fonksiyonu
-  const gorevSil = async id => {
-    try {
-      // Belirli bir ID'ye sahip görev hariç tüm görevleri filtrele
-      const yeniGorevler = gorevler.filter(gorev => gorev.id !== id);
-      setGorevler(yeniGorevler); // Yeni görevler listesini state'e kaydet
-
-      // Güncellenmiş görevler AsyncStorage'a kaydediliyor
-      await AsyncStorage.setItem('gorevler', JSON.stringify(yeniGorevler));
-    } catch (e) {
-      // Görev silinirken bir hata oluşursa, hata mesajını konsola yaz
-      console.error('Görev silinirken hata oluştu:', e);
-    }
-  };
-
-  // Görev düzenleme fonksiyonu
-  const gorevDuzenle = id => {
-    const mevcutGorevler = gorevler.find(item => item.id === id);
-    if (!mevcutGorevler) return;
+  const editTask = id => {
+    const existingTask = tasks.find(task => task.id === id);
+    if (!existingTask) return;
 
     Alert.prompt(
-      'Görevi Düzenle',
-      'Görevi güncellemek için yeni metni girin',
+      'Edit Task',
+      'Enter the new task text to update',
       [
         {
-          text: 'İptal',
+          text: 'Cancel',
           style: 'cancel',
         },
         {
-          text: 'Tamam',
-          onPress: newUpdateText => {
-            if (newUpdateText.trim()) {
-              // Mevcut görev metnini güncelle
-              const yeniGorevler = gorevler.map(item =>
-                item.id === id ? {...item, gorev: newUpdateText.trim()} : item,
+          text: 'OK',
+          onPress: newText => {
+            if (newText.trim()) {
+              const updatedTasks = tasks.map(task =>
+                task.id === id ? {...task, task: newText.trim()} : task,
               );
-              setGorevler(yeniGorevler); // Güncellenmiş görevler listesini state'e kaydet
-
-              // Güncellenmiş görevleri AsyncStorage'a kaydet
-              AsyncStorage.setItem('gorevler', JSON.stringify(yeniGorevler));
+              setTasks(updatedTasks);
+              AsyncStorage.setItem('tasks', JSON.stringify(updatedTasks));
             }
           },
         },
       ],
       'plain-text',
-      mevcutGorevler.gorev,
+      existingTask.task,
     );
   };
 
-  // Görev silme onayı fonksiyonu
-  const silOnayi = id => {
+  const confirmDelete = id => {
     Alert.alert(
-      'Sil',
-      'Bu görevi silmek istediğinize emin misiniz?',
+      'Delete',
+      'Are you sure you want to delete this task?',
       [
         {
-          text: 'Hayır',
+          text: 'No',
           style: 'cancel',
         },
         {
-          text: 'Evet',
-          onPress: () => gorevSil(id), // Evet seçeneğine tıklanınca görevi sil
+          text: 'Yes',
+          onPress: () => deleteTask(id),
         },
       ],
       {cancelable: false},
     );
   };
 
-  // Liste öğelerini render eden fonksiyon
   const renderItem = ({item}) => (
-    <View style={styles.todoitem}>
-      <Text style={styles.todo}>{item.gorev}</Text>
-      <View style={{flexDirection: 'row'}}>
-        <TouchableOpacity
-          style={[styles.button, styles.deleteButton]}
-          onPress={() => silOnayi(item.id)}>
-          <Text style={{color: '#ffffff'}}>Sil</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.button, styles.updateButton]}
-          onPress={() => gorevDuzenle(item.id)}>
-          <Text style={{color: '#ffffff'}}>Düzenle</Text>
-        </TouchableOpacity>
+    <View style={styles.taskContainer}>
+      <View style={styles.taskWrapper}>
+        <Text style={styles.task}>{item.task}</Text>
+        <View style={styles.iconContainer}>
+          <TouchableOpacity
+            style={[styles.button, styles.editButton]}
+            onPress={() => editTask(item.id)}>
+            <UpdateIcon />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.button, styles.deleteButton]}
+            onPress={() => confirmDelete(item.id)}>
+            <DeleteIcon />
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 
   return (
     <View style={styles.container}>
-      <SafeAreaView>
-        <Text style={styles.headerText}>Görev Listesi</Text>
+      <SafeAreaView style={styles.safeArea}>
+        <Text style={styles.headerText}>Task List</Text>
         <View style={styles.inputContainer}>
-          <View style={styles.buttonContainer}>
+          <View style={styles.textInputContainer}>
             <TextInput
-              value={gorev}
-              onChangeText={text => setGorev(text)}
-              placeholder="Bir Görev Ekle"
+              value={task}
+              onChangeText={text => setTask(text)}
+              placeholder="Add a Task"
               style={styles.input}
             />
-            <TouchableOpacity
-              style={[styles.button, styles.addButton]}
-              onPress={gorevEkle}>
-              <Text style={{color: '#fff'}}>Ekle</Text>
+            <TouchableOpacity style={styles.addButton} onPress={addTask}>
+              <Text style={styles.addButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         <FlatList
-          data={gorevler}
+          data={tasks}
           renderItem={renderItem}
           keyExtractor={item => item.id}
         />
@@ -179,70 +144,84 @@ export default function HomeScreen() {
   );
 }
 
-// Stil tanımları
 const styles = StyleSheet.create({
-  buttonContainer: {
-    flexDirection: 'row',
+  container: {
+    flex: 1,
+    backgroundColor: 'white',
   },
-  todoitem: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  safeArea: {
+    flex: 1,
     alignItems: 'center',
-    marginTop: 20,
   },
-  updateButton: {
-    backgroundColor: 'lightblue',
-    padding: 10,
+  headerText: {
+    marginTop: 40,
+    marginBottom: 40,
+    fontSize: 24,
+    fontWeight: '700',
+    color: '#232323',
+    fontFamily: 'Poppins',
+  },
+  inputContainer: {
+    width: 300,
+    marginBottom: 40,
+  },
+  textInputContainer: {
+    position: 'relative',
+    width: '100%',
   },
   input: {
     borderWidth: 1,
-    borderColor: 'grey',
-    padding: 10,
+    borderColor: '#cecece',
+    paddingLeft: 11, // Add space for the button
+    height: 42,
+    width: 300,
     borderRadius: 5,
-    flex: 1,
-  },
-  container: {
-    flex: 1,
-    padding: 20,
-  },
-  inputContainer: {},
-  headerText: {
-    marginVertical: 20,
-    fontSize: 24,
-    marginBottom: 20,
-    fontWeight: 'bold',
-    color: 'orange',
-    textAlign: 'center',
-  },
-  button: {
-    backgroundColor: 'tomato',
-    padding: 8,
-    marginLeft: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
+    fontSize: 16,
+    fontWeight: '300',
+    backgroundColor: '#fff',
   },
   addButton: {
-    backgroundColor: 'orange',
-    padding: 8,
-    marginLeft: 10,
+    position: 'absolute',
+    right: 0,
+    width: 70,
+    height: 42,
     borderRadius: 5,
+    borderBottomLeftRadius: 0,
+    borderTopLeftRadius: 0,
+    backgroundColor: '#232323',
     alignItems: 'center',
     justifyContent: 'center',
   },
-  deleteButton: {
-    backgroundColor: 'tomato',
-    padding: 8,
-    marginLeft: 10,
-    borderRadius: 5,
-    alignItems: 'center',
-    justifyContent: 'center',
+  addButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '400',
   },
-  todo: {
+  taskContainer: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+
+  taskWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
     borderWidth: 1,
-    width: '60%',
-    padding: 10,
-    borderRadius: 5,
-    borderColor: 'grey',
+    borderColor: '#cecece',
+    borderRadius: 10,
+    width: 300,
+    height: 46,
+    paddingLeft: 11,
+    paddingRight: 11,
+  },
+  task: {
+    flex: 1,
+    fontSize: 16,
+    color: '#232323',
+  },
+  iconContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
   },
 });
